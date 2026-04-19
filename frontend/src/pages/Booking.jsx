@@ -24,7 +24,7 @@ const Booking = () => {
 
     try {
       setLoading(true);
-      const res = await API.get(`/bookings/available?date=${date}`);
+      const res = await API.get(`/api/bookings/available?date=${date}`);
       setSlots(res.data);
     } catch (err) {
       console.error(err);
@@ -43,7 +43,7 @@ const Booking = () => {
     try {
       setLoading(true);
 
-      await API.post("/bookings", {
+      await API.post("/api/bookings", {
         name,
         serviceId: service._id,
         date,
