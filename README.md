@@ -1,6 +1,6 @@
 # ✂️ TrimTime – Barber Booking App
 
-🔗 **Live Demo:** https://trimtimesalon.netlify.app/
+🔗 **Live Demo:** https://cuttingtimetime.netlify.app/
 
 ---
 
