@@ -18,14 +18,53 @@ const Booking = () => {
   const [slots, setSlots] = useState([]);
   const [selectedSlot, setSelectedSlot] = useState("");
 
-  // 🔥 Fetch slots with validation
+  // Helper to get local date in YYYY-MM-DD
+  const getTodayString = () => {
+    const d = new Date();
+    const year = d.getFullYear();
+    const month = String(d.getMonth() + 1).padStart(2, "0");
+    const day = String(d.getDate()).padStart(2, "0");
+    return `${year}-${month}-${day}`;
+  };
+
+  const handleDateChange = (e) => {
+    setDate(e.target.value);
+    setSlots([]);
+    setSelectedSlot("");
+  };
+
+  // 🔥 Fetch slots with validation and timezone awareness
   const fetchSlots = async () => {
     if (!date) return alert("Please select a date");
 
     try {
       setLoading(true);
-      const res = await API.get(`/api/bookings/available?date=${date}`);
-      setSlots(res.data);
+      const userTimezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+      const res = await API.get(
+        `/api/bookings/available?date=${date}&timezone=${encodeURIComponent(userTimezone)}`
+      );
+
+      let availableSlots = res.data;
+
+      // Defensive filtering for remaining time slots if today is selected
+      const todayStr = getTodayString();
+      if (date === todayStr) {
+        const now = new Date();
+        const currentHours = now.getHours();
+        const currentMinutes = now.getMinutes();
+
+        availableSlots = availableSlots.filter((slot) => {
+          const [slotHour, slotMinute] = slot.split(":").map(Number);
+          if (slotHour > currentHours) return true;
+          if (slotHour === currentHours && slotMinute > currentMinutes) return true;
+          return false;
+        });
+      } else if (date < todayStr) {
+        availableSlots = [];
+      }
+
+      setSlots(availableSlots);
+      setSelectedSlot("");
     } catch (err) {
       console.error(err);
       alert("Failed to load slots");
@@ -42,12 +81,14 @@ const Booking = () => {
 
     try {
       setLoading(true);
+      const userTimezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
 
       await API.post("/api/bookings", {
         name,
         serviceId: service._id,
         date,
         time: selectedSlot,
+        timezone: userTimezone,
       });
 
       setSuccess(true);
@@ -58,7 +99,8 @@ const Booking = () => {
       setSlots([]);
     } catch (err) {
       console.error(err);
-      alert("Booking failed ❌");
+      const message = err.response?.data?.message || "Booking failed ❌";
+      alert(message);
     } finally {
       setLoading(false);
     }
@@ -66,9 +108,9 @@ const Booking = () => {
 
   return (
     <div className="booking-container">
-      <h1>{service.name}</h1>
-      <p className="price">₹{service.price}</p>
-      {/* <p className="duration">{service.duration} mins</p> */}
+      <h1>{service?.name}</h1>
+      <p className="price">₹{service?.price}</p>
+      {/* <p className="duration">{service?.duration} mins</p> */}
 
       {/* INPUTS */}
       <input
@@ -80,9 +122,9 @@ const Booking = () => {
 
       <input
         type="date"
-        min={new Date().toISOString().split("T")[0]}
+        min={getTodayString()}
         value={date}
-        onChange={(e) => setDate(e.target.value)}
+        onChange={handleDateChange}
       />
 
       {/* CHECK SLOT BUTTON */}
@@ -111,7 +153,7 @@ const Booking = () => {
       <button
         className="confirm-btn"
         onClick={handleBooking}
-        disabled={loading}
+        disabled={loading || !selectedSlot}
       >
         Confirm Booking
       </button>

@@ -9,7 +9,7 @@ const Home = () => {
   const navigate = useNavigate();
 
   useEffect(() => {
-    API.get("/services")
+    API.get("/api/services")
       .then((res) => setServices(res.data))
       .catch((err) => console.log(err));
   }, []);

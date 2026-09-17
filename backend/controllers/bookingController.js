@@ -1,16 +1,22 @@
 const Booking = require("../models/Booking");
 const generateSlots = require("../utils/generateSlots");
 const Service = require("../models/Service");
-let dayjs = require("dayjs");
+const dayjs = require("dayjs");
+const utc = require("dayjs/plugin/utc");
+const timezone = require("dayjs/plugin/timezone");
+
+dayjs.extend(utc);
+dayjs.extend(timezone);
 
 // ✅ POST Booking
 exports.createBooking = async (req, res) => {
   try {
-    const { name, serviceId, date, time } = req.body;
+    const { name, serviceId, date, time, timezone: userTz } = req.body;
+    const tz = userTz || process.env.TIMEZONE || "Asia/Kolkata";
 
     // ❌ Prevent past date/time booking
-    const now = dayjs();
-    const bookingDateTime = dayjs(`${date} ${time}`);
+    const now = dayjs().tz(tz);
+    const bookingDateTime = dayjs.tz(`${date} ${time}`, "YYYY-MM-DD HH:mm", tz);
 
     if (bookingDateTime.isBefore(now)) {
       return res.status(400).json({
@@ -31,7 +37,7 @@ exports.createBooking = async (req, res) => {
     const slotsNeeded = Math.ceil(duration / 30);
 
     // 3️⃣ Generate slots
-    const allSlots = require("../utils/generateSlots")();
+    const allSlots = generateSlots();
 
     const startIndex = allSlots.indexOf(time);
 
@@ -73,10 +79,13 @@ exports.createBooking = async (req, res) => {
 };
 
 // ✅ GET AVAILABLE SLOTS
-
 exports.getAvailableSlots = async (req, res) => {
   try {
-    const { date } = req.query;
+    const { date, timezone: userTz } = req.query;
+
+    if (!date) {
+      return res.status(400).json({ message: "Date is required" });
+    }
 
     let slots = generateSlots();
 
@@ -103,14 +112,16 @@ exports.getAvailableSlots = async (req, res) => {
     // ❌ remove booked slots
     slots = slots.filter((slot) => !blockedSlots.includes(slot));
 
-    // 🔥 REMOVE PAST SLOTS (IMPORTANT)
-    const today = dayjs().format("YYYY-MM-DD");
+    // 🔥 REMOVE PAST SLOTS (timezone-aware)
+    const tz = userTz || process.env.TIMEZONE || "Asia/Kolkata";
+    const now = dayjs().tz(tz);
+    const today = now.format("YYYY-MM-DD");
 
-    if (date === today) {
-      const now = dayjs();
-
+    if (dayjs(date).isBefore(today, "day")) {
+      slots = [];
+    } else if (date === today) {
       slots = slots.filter((slot) => {
-        const slotTime = dayjs(`${date} ${slot}`);
+        const slotTime = dayjs.tz(`${date} ${slot}`, "YYYY-MM-DD HH:mm", tz);
         return slotTime.isAfter(now);
       });
     }
